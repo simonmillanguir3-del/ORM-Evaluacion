@@ -24,30 +24,29 @@ class ErrorPersistencia(RuntimeError):
 
 
 def transaccion(funcion):
-    """Confirma toda la operación o revierte sus cambios si ocurre un error.
-
-    Cada operación de escritura es una unidad completa de trabajo. La sesión
-    recibida no debe contener cambios pendientes ajenos a esa operación.
-    """
+    """Guarda toda la operación o la revierte. Use una sesión sin otros cambios pendientes."""
     @wraps(funcion)
     def ejecutar(sesion, *args, **kwargs):
         try:
+            # SQLite reserva la escritura antes de leer el stock o el estado.
+            # Así dos sesiones no pueden modificar el mismo saldo a la vez.
+            conexion = sesion.connection()
+            if conexion.dialect.name == "sqlite":
+                sqlite = conexion.connection.driver_connection
+                if not sqlite.in_transaction:
+                    conexion.exec_driver_sql("BEGIN IMMEDIATE")
+
             resultado = funcion(sesion, *args, **kwargs)
             sesion.commit()
             return resultado
-        except IntegrityError as error:
+        except Exception as error:
             sesion.rollback()
-            raise ErrorValidacion(
-                "No se pudo guardar: hay datos duplicados, valores inválidos "
-                "o registros relacionados."
-            ) from error
-        except SQLAlchemyError as error:
-            sesion.rollback()
-            raise ErrorPersistencia(
-                "No se pudo completar la operación en la base de datos."
-            ) from error
-        except Exception:
-            sesion.rollback()
+            if isinstance(error, IntegrityError):
+                raise ErrorValidacion(
+                    "No se pudo guardar por datos duplicados, inválidos o vinculados."
+                ) from error
+            if isinstance(error, SQLAlchemyError):
+                raise ErrorPersistencia("No se pudo completar la operación en la base de datos.") from error
             raise
 
     return ejecutar
@@ -64,9 +63,14 @@ def texto(valor, campo, obligatorio=True):
 
 def entero(valor, campo, minimo=0):
     if isinstance(valor, str) and re.fullmatch(r"[+-]?[0-9]+", valor.strip()):
-        valor = int(valor)
+        try:
+            valor = int(valor)
+        except ValueError as error:
+            raise ErrorValidacion(f"{campo} supera el límite de SQLite.") from error
     if type(valor) is not int or valor < minimo:
         raise ErrorValidacion(f"{campo} debe ser un entero mayor o igual a {minimo}.")
+    if valor > 2**63 - 1:
+        raise ErrorValidacion(f"{campo} supera el límite de SQLite.")
     return valor
 
 
@@ -83,21 +87,22 @@ def precio(valor):
 
 
 def fecha(valor, campo):
+    if type(valor) is date:
+        return valor
     if isinstance(valor, str):
+        valor = valor.strip()
         try:
-            if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", valor.strip()):
-                raise ValueError
-            return date.fromisoformat(valor.strip())
-        except ValueError as error:
-            raise ErrorValidacion(f"{campo} debe ser una fecha válida (AAAA-MM-DD).") from error
-    if type(valor) is not date:
-        raise ErrorValidacion(f"{campo} debe ser una fecha válida (AAAA-MM-DD).")
-    return valor
+            resultado = date.fromisoformat(valor)
+            if resultado.isoformat() == valor:
+                return resultado
+        except ValueError:
+            pass
+    raise ErrorValidacion(f"{campo} debe ser una fecha válida (AAAA-MM-DD).")
 
 
 def obtener(sesion, modelo, identificador, nombre):
     identificador = entero(identificador, f"El ID de {nombre}", minimo=1)
-    registro = sesion.get(modelo, identificador)
+    registro = sesion.get(modelo, identificador, populate_existing=True)
     if registro is None:
         raise ErrorValidacion(f"No existe {nombre} con ID {identificador}.")
     return registro

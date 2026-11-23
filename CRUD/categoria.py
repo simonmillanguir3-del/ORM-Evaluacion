@@ -34,14 +34,10 @@ def listar_categorias(sesion):
 @transaccion
 def actualizar_categoria(sesion, categoria_id, nombre=None, descripcion=None):
     categoria = obtener_categoria(sesion, categoria_id)
-    nuevo_nombre = categoria.nombre if nombre is None else _validar_nombre(
-        sesion, nombre, categoria.id
-    )
-    nueva_descripcion = categoria.descripcion if descripcion is None else texto(
-        descripcion, "La descripción", obligatorio=False
-    )
-    categoria.nombre = nuevo_nombre
-    categoria.descripcion = nueva_descripcion
+    if nombre is not None:
+        categoria.nombre = _validar_nombre(sesion, nombre, categoria.id)
+    if descripcion is not None:
+        categoria.descripcion = texto(descripcion, "La descripción", obligatorio=False)
     return categoria
 
 

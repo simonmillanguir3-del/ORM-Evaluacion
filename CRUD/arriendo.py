@@ -1,8 +1,10 @@
-from sqlalchemy import delete, select, update
+from sqlalchemy import select
 
 from CRUD._comun import (
-    Arriendo, Cliente, Equipo, ErrorValidacion, entero, fecha, obtener, transaccion,
+    Arriendo, ErrorValidacion, entero, fecha, obtener, transaccion,
 )
+from CRUD.cliente import obtener_cliente
+from CRUD.equipo import obtener_equipo
 
 
 def _validar_fechas(fecha_inicio, fecha_fin_prevista):
@@ -13,43 +15,22 @@ def _validar_fechas(fecha_inicio, fecha_fin_prevista):
     return inicio, fin
 
 
-def _ajustar_stock(sesion, equipo_id, diferencia):
-    # La condición se comprueba en la BD, en el mismo UPDATE que cambia el stock.
-    # Así otra operación no puede consumir las mismas unidades entre la lectura
-    # del disponible y su descuento.
-    nuevo_stock = Equipo.stock_disponible + diferencia
-    resultado = sesion.execute(
-        update(Equipo)
-        .where(Equipo.id == equipo_id, nuevo_stock >= 0, nuevo_stock <= Equipo.stock_total)
-        .values(stock_disponible=nuevo_stock)
-        .execution_options(synchronize_session="fetch")
-    )
-    if resultado.rowcount != 1:
-        raise ErrorValidacion(
-            "No hay stock disponible suficiente o el cambio supera el stock total del equipo."
-        )
-
-
-def _version_actual(arriendo):
-    """Comprueba que el arriendo no cambió desde que fue consultado."""
-    return (
-        Arriendo.id == arriendo.id,
-        Arriendo.estado == arriendo.estado,
-        Arriendo.equipo_id == arriendo.equipo_id,
-        Arriendo.cliente_id == arriendo.cliente_id,
-        Arriendo.cantidad == arriendo.cantidad,
-        Arriendo.fecha_inicio == arriendo.fecha_inicio,
-        Arriendo.fecha_fin_prevista == arriendo.fecha_fin_prevista,
-    )
+def _ajustar_stock(equipo, diferencia):
+    nuevo_stock = equipo.stock_disponible + diferencia
+    if nuevo_stock < 0:
+        raise ErrorValidacion("No hay stock disponible suficiente.")
+    if nuevo_stock > equipo.stock_total:
+        raise ErrorValidacion("El stock disponible no puede superar el stock total.")
+    equipo.stock_disponible = nuevo_stock
 
 
 @transaccion
 def crear_arriendo(sesion, equipo_id, cliente_id, fecha_inicio, fecha_fin_prevista, cantidad):
-    equipo = obtener(sesion, Equipo, equipo_id, "el equipo")
-    cliente = obtener(sesion, Cliente, cliente_id, "el cliente")
     inicio, fin = _validar_fechas(fecha_inicio, fecha_fin_prevista)
     cantidad = entero(cantidad, "La cantidad", minimo=1)
-    _ajustar_stock(sesion, equipo.id, -cantidad)
+    equipo = obtener_equipo(sesion, equipo_id)
+    cliente = obtener_cliente(sesion, cliente_id)
+    _ajustar_stock(equipo, -cantidad)
     arriendo = Arriendo(
         equipo_id=equipo.id, cliente_id=cliente.id,
         fecha_inicio=inicio, fecha_fin_prevista=fin, cantidad=cantidad, estado="ACTIVO",
@@ -70,10 +51,10 @@ def listar_arriendos(sesion, estado=None, cliente_id=None, equipo_id=None):
             raise ErrorValidacion("El estado debe ser ACTIVO o DEVUELTO.")
         consulta = consulta.where(Arriendo.estado == estado)
     if cliente_id is not None:
-        cliente = obtener(sesion, Cliente, cliente_id, "el cliente")
+        cliente = obtener_cliente(sesion, cliente_id)
         consulta = consulta.where(Arriendo.cliente_id == cliente.id)
     if equipo_id is not None:
-        equipo = obtener(sesion, Equipo, equipo_id, "el equipo")
+        equipo = obtener_equipo(sesion, equipo_id)
         consulta = consulta.where(Arriendo.equipo_id == equipo.id)
     return list(sesion.scalars(consulta))
 
@@ -87,39 +68,37 @@ def actualizar_arriendo(
     sesion, arriendo_id, equipo_id=None, cliente_id=None,
     fecha_inicio=None, fecha_fin_prevista=None, cantidad=None,
 ):
-    """Modifica un arriendo activo y ajusta la diferencia de stock.
-
-    Un arriendo devuelto conserva sus datos. El cambio a DEVUELTO se realiza
-    exclusivamente mediante devolver_arriendo.
-    """
+    """Modifica un arriendo activo y corrige el stock de los equipos."""
     arriendo = obtener_arriendo(sesion, arriendo_id)
     if arriendo.estado != "ACTIVO":
         raise ErrorValidacion("Solo se pueden modificar arriendos activos.")
-    equipo_anterior, cantidad_anterior = arriendo.equipo_id, arriendo.cantidad
-    nuevo_equipo = equipo_anterior if equipo_id is None else obtener(
-        sesion, Equipo, equipo_id, "el equipo"
-    ).id
-    nuevo_cliente = arriendo.cliente_id if cliente_id is None else obtener(
-        sesion, Cliente, cliente_id, "el cliente"
-    ).id
-    nueva_cantidad = cantidad_anterior if cantidad is None else entero(cantidad, "La cantidad", minimo=1)
     inicio, fin = _validar_fechas(
         arriendo.fecha_inicio if fecha_inicio is None else fecha_inicio,
         arriendo.fecha_fin_prevista if fecha_fin_prevista is None else fecha_fin_prevista,
     )
-    resultado = sesion.execute(
-        update(Arriendo).where(*_version_actual(arriendo)).values(
-            equipo_id=nuevo_equipo, cliente_id=nuevo_cliente,
-            fecha_inicio=inicio, fecha_fin_prevista=fin, cantidad=nueva_cantidad,
-        ).execution_options(synchronize_session="fetch")
-    )
-    if resultado.rowcount != 1:
-        raise ErrorValidacion("El arriendo cambió. Consulte sus datos antes de intentar modificarlo.")
-    if nuevo_equipo == equipo_anterior:
-        _ajustar_stock(sesion, nuevo_equipo, cantidad_anterior - nueva_cantidad)
-    else:
-        _ajustar_stock(sesion, equipo_anterior, cantidad_anterior)
-        _ajustar_stock(sesion, nuevo_equipo, -nueva_cantidad)
+    if cantidad is None:
+        cantidad = arriendo.cantidad
+    cantidad = entero(cantidad, "La cantidad", minimo=1)
+    nuevo_cliente = None
+    if cliente_id is not None:
+        nuevo_cliente = obtener_cliente(sesion, cliente_id)
+
+    if equipo_id is not None or cantidad != arriendo.cantidad:
+        equipo_anterior = obtener_equipo(sesion, arriendo.equipo_id)
+        equipo = equipo_anterior if equipo_id is None else obtener_equipo(sesion, equipo_id)
+
+        if equipo.id == equipo_anterior.id:
+            _ajustar_stock(equipo, arriendo.cantidad - cantidad)
+        else:
+            _ajustar_stock(equipo, -cantidad)
+            _ajustar_stock(equipo_anterior, arriendo.cantidad)
+            arriendo.equipo = equipo
+
+    if nuevo_cliente is not None:
+        arriendo.cliente = nuevo_cliente
+    arriendo.cantidad = cantidad
+    arriendo.fecha_inicio = inicio
+    arriendo.fecha_fin_prevista = fin
     return arriendo
 
 
@@ -128,14 +107,9 @@ def devolver_arriendo(sesion, arriendo_id):
     arriendo = obtener_arriendo(sesion, arriendo_id)
     if arriendo.estado != "ACTIVO":
         raise ErrorValidacion("El arriendo ya fue devuelto. No se permiten devoluciones duplicadas.")
-    equipo_id, cantidad = arriendo.equipo_id, arriendo.cantidad
-    resultado = sesion.execute(
-        update(Arriendo).where(*_version_actual(arriendo))
-        .values(estado="DEVUELTO").execution_options(synchronize_session="fetch")
-    )
-    if resultado.rowcount != 1:
-        raise ErrorValidacion("El arriendo cambió o ya fue devuelto. Actualice la consulta.")
-    _ajustar_stock(sesion, equipo_id, cantidad)
+    equipo = obtener_equipo(sesion, arriendo.equipo_id)
+    _ajustar_stock(equipo, arriendo.cantidad)
+    arriendo.estado = "DEVUELTO"
     return arriendo
 
 
@@ -145,10 +119,5 @@ def eliminar_arriendo(sesion, arriendo_id):
     arriendo = obtener_arriendo(sesion, arriendo_id)
     if arriendo.estado != "DEVUELTO":
         raise ErrorValidacion("Debe devolver el arriendo antes de eliminar su registro.")
-    resultado = sesion.execute(
-        delete(Arriendo).where(*_version_actual(arriendo))
-        .execution_options(synchronize_session="fetch")
-    )
-    if resultado.rowcount != 1:
-        raise ErrorValidacion("El arriendo cambió. Actualice la consulta antes de eliminarlo.")
+    sesion.delete(arriendo)
     return True
