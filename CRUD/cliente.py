@@ -49,12 +49,12 @@ def listar_clientes(sesion):
 @transaccion
 def actualizar_cliente(sesion, cliente_id, nombre=None, correo=None, telefono=None):
     cliente = obtener_cliente(sesion, cliente_id)
-    nuevo_nombre = cliente.nombre if nombre is None else texto(nombre, "El nombre del cliente")
-    nuevo_correo = cliente.correo if correo is None else _validar_correo(sesion, correo, cliente.id)
-    nuevo_telefono = cliente.telefono if telefono is None else _validar_telefono(telefono)
-    cliente.nombre = nuevo_nombre
-    cliente.correo = nuevo_correo
-    cliente.telefono = nuevo_telefono
+    if correo is not None:
+        cliente.correo = _validar_correo(sesion, correo, cliente.id)
+    if nombre is not None:
+        cliente.nombre = texto(nombre, "El nombre del cliente")
+    if telefono is not None:
+        cliente.telefono = _validar_telefono(telefono)
     return cliente
 
 
