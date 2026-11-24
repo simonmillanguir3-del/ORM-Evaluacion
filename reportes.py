@@ -1,7 +1,7 @@
 from matplotlib.ticker import MaxNLocator
 from sqlalchemy import func, select
 
-from CRUD._comun import Arriendo, Categoria, Equipo
+from modelos import Arriendo, Categoria, Equipo
 
 
 def arriendos_por_categoria(sesion):

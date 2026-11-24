@@ -1,10 +1,9 @@
 from sqlalchemy import select
 
-from CRUD._comun import (
-    Arriendo, ErrorValidacion, entero, fecha, obtener, transaccion,
-)
+from CRUD._comun import ErrorValidacion, entero, fecha, obtener, transaccion
 from CRUD.cliente import obtener_cliente
 from CRUD.equipo import obtener_equipo
+from modelos import Arriendo
 
 
 def _validar_fechas(fecha_inicio, fecha_fin_prevista):
@@ -44,7 +43,7 @@ def obtener_arriendo(sesion, arriendo_id):
 
 
 def listar_arriendos(sesion, estado=None, cliente_id=None, equipo_id=None):
-    """Sin filtros devuelve el historial completo, incluidos los activos."""
+    "Sin filtros devuelve el historial completo, incluidos los activos."
     consulta = select(Arriendo).order_by(Arriendo.id)
     if estado is not None:
         if estado not in ("ACTIVO", "DEVUELTO"):
@@ -68,7 +67,7 @@ def actualizar_arriendo(
     sesion, arriendo_id, equipo_id=None, cliente_id=None,
     fecha_inicio=None, fecha_fin_prevista=None, cantidad=None,
 ):
-    """Modifica un arriendo activo y corrige el stock de los equipos."""
+    "Modifica un arriendo activo y corrige el stock de los equipos."
     arriendo = obtener_arriendo(sesion, arriendo_id)
     if arriendo.estado != "ACTIVO":
         raise ErrorValidacion("Solo se pueden modificar arriendos activos.")
@@ -115,7 +114,7 @@ def devolver_arriendo(sesion, arriendo_id):
 
 @transaccion
 def eliminar_arriendo(sesion, arriendo_id):
-    """Elimina un registro devuelto; nunca borra un préstamo pendiente."""
+    "Elimina un registro devuelto; nunca borra un préstamo pendiente."
     arriendo = obtener_arriendo(sesion, arriendo_id)
     if arriendo.estado != "DEVUELTO":
         raise ErrorValidacion("Debe devolver el arriendo antes de eliminar su registro.")

@@ -2,7 +2,8 @@ import re
 
 from sqlalchemy import func, select
 
-from CRUD._comun import Arriendo, Cliente, ErrorValidacion, obtener, texto, transaccion
+from CRUD._comun import ErrorValidacion, obtener, texto, transaccion
+from modelos import Arriendo, Cliente
 
 
 def _validar_correo(sesion, correo, cliente_id=None):

@@ -1,37 +1,23 @@
 import re
 from datetime import date
 from functools import wraps
-from importlib import import_module
 from math import isfinite
 
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-# import_module permite conservar la carpeta original, que contiene un guion.
-modelos = import_module("Arriendos-deportivos.modelos")
-Base = modelos.Base
-Categoria = modelos.Categoria
-Cliente = modelos.Cliente
-Equipo = modelos.Equipo
-EquipoProteccion = modelos.EquipoProteccion
-EquipoEntrenamiento = modelos.EquipoEntrenamiento
-Arriendo = modelos.Arriendo
-
-
 class ErrorValidacion(ValueError):
-    """Dato inválido o una operación que incumple las reglas de negocio."""
+    "Dato inválido o una operación que incumple las reglas de negocio."
 
 
 class ErrorPersistencia(RuntimeError):
-    """No fue posible completar una operación en la base de datos."""
+    "No fue posible completar una operación en la base de datos."
 
 
 def transaccion(funcion):
-    """Guarda toda la operación o la revierte. Use una sesión sin otros cambios pendientes."""
+    "Guarda toda la operación o la revierte. Use una sesión sin otros cambios pendientes."
     @wraps(funcion)
     def ejecutar(sesion, *args, **kwargs):
         try:
-            # SQLite reserva la escritura antes de leer el stock o el estado.
-            # Así dos sesiones no pueden modificar el mismo saldo a la vez.
             conexion = sesion.connection()
             if conexion.dialect.name == "sqlite":
                 sqlite = conexion.connection.driver_connection

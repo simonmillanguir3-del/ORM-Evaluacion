@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 
-from CRUD._comun import (
-    Equipo, EquipoEntrenamiento, EquipoProteccion, ErrorValidacion, entero, precio, texto,
-)
+from CRUD._comun import ErrorValidacion, entero, precio, texto
+from modelos import Equipo, EquipoEntrenamiento, EquipoProteccion
 
 
 class CreadorEquipo(ABC):
+    "Valida los datos y delega la construcción al creador concreto."
+
     def crear_equipo(self, nombre, categoria_id, precio_diario, stock_total, stock_disponible):
         total = entero(stock_total, "El stock total")
         disponible = total if stock_disponible is None else entero(stock_disponible, "El stock disponible")
@@ -21,7 +22,7 @@ class CreadorEquipo(ABC):
 
     @abstractmethod
     def _crear_producto(self, **datos):
-        """Construye una instancia del tipo concreto de equipamiento."""
+        "Construye una instancia del tipo concreto de equipamiento."
 
 
 class CreadorEquipoGeneral(CreadorEquipo):

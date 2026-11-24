@@ -4,13 +4,13 @@ from tkinter import messagebox, ttk
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from CRUD._comun import ErrorPersistencia, ErrorValidacion
+from CRUD import ErrorPersistencia, ErrorValidacion
 
 
 class Panel(ttk.Frame):
-    """Formulario, tabla y manejo de errores compartidos por las pestañas."""
+    "Formulario, tabla y manejo de errores compartidos por las pestañas."
 
-    def __init__(self, padre, motor, titulo, columnas):
+    def __init__(self, padre, motor, titulo, columnas, *, desplazamiento_horizontal=False):
         super().__init__(padre, padding=15)
         self.motor = motor
         self.formulario = ttk.LabelFrame(self, text=titulo, padding=10)
@@ -21,15 +21,21 @@ class Panel(ttk.Frame):
         self.controles.pack(fill="x", pady=8)
         marco = ttk.Frame(self)
         marco.pack(fill="both", expand=True)
+        marco.columnconfigure(0, weight=1)
+        marco.rowconfigure(0, weight=1)
         self.tabla = ttk.Treeview(marco, columns=[clave for clave, _, _ in columnas],
                                   show="headings", selectmode="browse")
         for clave, etiqueta, ancho in columnas:
             self.tabla.heading(clave, text=etiqueta)
             self.tabla.column(clave, width=ancho, stretch=clave != "id")
         barra = ttk.Scrollbar(marco, orient="vertical", command=self.tabla.yview)
-        barra.pack(side="right", fill="y")
+        barra.grid(row=0, column=1, sticky="ns")
         self.tabla.configure(yscrollcommand=barra.set)
-        self.tabla.pack(fill="both", expand=True)
+        self.tabla.grid(row=0, column=0, sticky="nsew")
+        if desplazamiento_horizontal:
+            horizontal = ttk.Scrollbar(marco, orient="horizontal", command=self.tabla.xview)
+            horizontal.grid(row=1, column=0, sticky="ew")
+            self.tabla.configure(xscrollcommand=horizontal.set)
 
         self.estado = tk.StringVar(self)
         ttk.Label(self, textvariable=self.estado).pack(anchor="w", pady=(6, 0))
@@ -56,11 +62,15 @@ class Panel(ttk.Frame):
         try:
             with Session(self.motor) as sesion:
                 filas = self.leer_filas(sesion)
-        except SQLAlchemyError:
+        except (ErrorPersistencia, SQLAlchemyError):
             messagebox.showerror("Error", "No se pudieron cargar los datos.", parent=self)
-            return
+            return False
 
-        # Actualizar las filas en su sitio conserva la selección al cambiar de pestaña.
+        self.mostrar_filas(filas)
+        return True
+
+    def mostrar_filas(self, filas):
+        "Actualiza las filas por ID y conserva la selección de los registros visibles."
         restantes = set(self.tabla.get_children())
         for indice, fila in enumerate(filas):
             clave = str(fila[0])
@@ -84,6 +94,8 @@ class Panel(ttk.Frame):
             messagebox.showerror("Error", "No se pudo acceder a la base de datos.", parent=self)
             return False
 
-        self.estado.set(mensaje)
-        self.recargar()
+        if self.recargar():
+            self.estado.set(mensaje)
+        else:
+            self.estado.set(f"{mensaje} No se pudo actualizar la tabla.")
         return True
