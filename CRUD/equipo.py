@@ -1,11 +1,9 @@
 from sqlalchemy import select
 
-from CRUD._comun import (
-    Arriendo, Equipo, ErrorValidacion, entero, obtener,
-    precio, texto, transaccion,
-)
+from CRUD._comun import ErrorValidacion, entero, obtener, precio, texto, transaccion
 from CRUD.categoria import obtener_categoria
 from CRUD.fabrica_equipo import obtener_creador
+from modelos import Arriendo, Equipo
 
 
 @transaccion
@@ -44,7 +42,7 @@ def actualizar_equipo(
     sesion, equipo_id, nombre=None, categoria_id=None, precio_diario=None,
     stock_total=None, stock_disponible=None,
 ):
-    """Al cambiar el total, conserva las unidades que no están disponibles."""
+    "Al cambiar el total, conserva las unidades que no están disponibles."
     equipo = obtener_equipo(sesion, equipo_id)
     if categoria_id is not None:
         equipo.categoria = obtener_categoria(sesion, categoria_id)

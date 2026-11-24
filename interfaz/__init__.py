@@ -1,1 +1,1 @@
-"""Interfaz de escritorio."""
+"Interfaz de escritorio."

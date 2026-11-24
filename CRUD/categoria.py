@@ -1,6 +1,7 @@
 from sqlalchemy import func, select
 
-from CRUD._comun import Categoria, Equipo, ErrorValidacion, obtener, texto, transaccion
+from CRUD._comun import ErrorValidacion, obtener, texto, transaccion
+from modelos import Categoria, Equipo
 
 
 def _validar_nombre(sesion, nombre, categoria_id=None):
