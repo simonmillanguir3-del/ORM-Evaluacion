@@ -2,7 +2,10 @@ import tkinter as tk
 from tkinter import ttk
 
 from CRUD.conexion import crear_motor
+from interfaz.arriendos import VistaArriendos
 from interfaz.categorias import VistaCategorias
+from interfaz.clientes import VistaClientes
+from interfaz.equipos import VistaEquipos
 
 
 def main():
@@ -17,10 +20,20 @@ def main():
         pestanas = ttk.Notebook(ventana)
         pestanas.pack(fill="both", expand=True, padx=20, pady=(0, 20))
         pestanas.add(VistaCategorias(pestanas, motor), text="Categorías")
-        for nombre in ("Equipos", "Clientes", "Arriendos"):
-            panel = ttk.Frame(pestanas, padding=20)
-            ttk.Label(panel, text="Funcionalidad pendiente.").pack()
-            pestanas.add(panel, text=nombre)
+        equipos = VistaEquipos(pestanas, motor)
+        pestanas.add(equipos, text="Equipos")
+        pestanas.add(VistaClientes(pestanas, motor), text="Clientes")
+        arriendos = VistaArriendos(pestanas, motor)
+        pestanas.add(arriendos, text="Arriendos")
+
+        def actualizar_pestana(_evento):
+            activa = pestanas.select()
+            if activa == str(equipos):
+                equipos.recargar()
+            elif activa == str(arriendos):
+                arriendos.recargar()
+
+        pestanas.bind("<<NotebookTabChanged>>", actualizar_pestana)
         ventana.mainloop()
     finally:
         motor.dispose()
