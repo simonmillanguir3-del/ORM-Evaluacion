@@ -6,6 +6,7 @@ from interfaz.arriendos import VistaArriendos
 from interfaz.categorias import VistaCategorias
 from interfaz.clientes import VistaClientes
 from interfaz.equipos import VistaEquipos
+from interfaz.reportes import VistaReportes
 
 
 def main():
@@ -25,6 +26,7 @@ def main():
         pestanas.add(VistaClientes(pestanas, motor), text="Clientes")
         arriendos = VistaArriendos(pestanas, motor)
         pestanas.add(arriendos, text="Arriendos")
+        pestanas.add(VistaReportes(pestanas, motor), text="Reportes")
 
         def actualizar_pestana(_evento):
             activa = pestanas.select()

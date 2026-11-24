@@ -5,21 +5,17 @@ from CRUD._comun import (
     precio, texto, transaccion,
 )
 from CRUD.categoria import obtener_categoria
+from CRUD.fabrica_equipo import obtener_creador
 
 
 @transaccion
-def crear_equipo(sesion, nombre, categoria_id, precio_diario, stock_total, stock_disponible=None):
+def crear_equipo(
+    sesion, nombre, categoria_id, precio_diario, stock_total, stock_disponible=None,
+    *, tipo="general",
+):
     categoria = obtener_categoria(sesion, categoria_id)
-    total = entero(stock_total, "El stock total")
-    disponible = total if stock_disponible is None else entero(stock_disponible, "El stock disponible")
-    if disponible > total:
-        raise ErrorValidacion("El stock disponible no puede superar el stock total.")
-    equipo = Equipo(
-        nombre=texto(nombre, "El nombre del equipo"),
-        categoria_id=categoria.id,
-        precio_diario=precio(precio_diario),
-        stock_total=total,
-        stock_disponible=disponible,
+    equipo = obtener_creador(tipo).crear_equipo(
+        nombre, categoria.id, precio_diario, stock_total, stock_disponible,
     )
     sesion.add(equipo)
     return equipo

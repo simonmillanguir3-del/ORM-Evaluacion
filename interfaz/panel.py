@@ -73,10 +73,10 @@ class Panel(ttk.Frame):
         if restantes:
             self.tabla.delete(*restantes)
 
-    def ejecutar(self, operacion, mensaje, *datos):
+    def ejecutar(self, operacion, mensaje, *datos, **opciones):
         try:
             with Session(self.motor) as sesion:
-                operacion(sesion, *datos)
+                operacion(sesion, *datos, **opciones)
         except (ErrorValidacion, ErrorPersistencia) as error:
             messagebox.showerror("No se pudo completar", str(error), parent=self)
             return False

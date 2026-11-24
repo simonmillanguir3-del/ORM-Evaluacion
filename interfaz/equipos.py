@@ -6,10 +6,19 @@ from CRUD.equipo import actualizar_equipo, crear_equipo, eliminar_equipo, listar
 from interfaz.panel import Panel
 
 
+_ETIQUETAS_TIPO = {
+    "general": "General",
+    "proteccion": "Protección",
+    "entrenamiento": "Entrenamiento",
+}
+_TIPOS_POR_ETIQUETA = {etiqueta: tipo for tipo, etiqueta in _ETIQUETAS_TIPO.items()}
+
+
 class VistaEquipos(Panel):
     def __init__(self, padre, motor):
         columnas = (
             ("id", "ID", 45), ("nombre", "Nombre", 140), ("categoria", "Categoría", 140),
+            ("tipo", "Tipo", 100),
             ("precio", "Precio diario", 90), ("total", "Stock total", 80),
             ("disponible", "Disponible", 80),
         )
@@ -18,6 +27,7 @@ class VistaEquipos(Panel):
         self.categoria = tk.StringVar(self)
         self.precio = tk.StringVar(self)
         self.stock = tk.StringVar(self)
+        self.tipo = tk.StringVar(self, _ETIQUETAS_TIPO["general"])
         self.solo_disponibles = tk.BooleanVar(self)
         self.categorias = {}
 
@@ -25,6 +35,8 @@ class VistaEquipos(Panel):
         self.combo_categoria = self.campo(1, "Categoría", self.categoria, selector=True)
         self.campo(2, "Precio diario", self.precio)
         self.campo(3, "Stock total", self.stock)
+        self.combo_tipo = self.campo(4, "Tipo de equipamiento", self.tipo, selector=True)
+        self.combo_tipo["values"] = tuple(_TIPOS_POR_ETIQUETA)
         self.boton("Nuevo", self.limpiar)
         self.boton_guardar = self.boton("Guardar", self.guardar)
         self.boton("Eliminar", self.eliminar)
@@ -41,8 +53,11 @@ class VistaEquipos(Panel):
         self.combo_categoria["values"] = list(self.categorias)
         if self.categoria.get() not in self.categorias:
             self.categoria.set("")
-        return [(e.id, e.nombre, etiquetas.get(e.categoria_id, ""),
-                 e.precio_diario, e.stock_total, e.stock_disponible) for e in equipos]
+        return [
+            (e.id, e.nombre, etiquetas.get(e.categoria_id, ""), _ETIQUETAS_TIPO.get(e.tipo, e.tipo),
+             e.precio_diario, e.stock_total, e.stock_disponible)
+            for e in equipos
+        ]
 
     def filtrar(self):
         self.limpiar()
@@ -54,6 +69,8 @@ class VistaEquipos(Panel):
             self.tabla.selection_remove(fila)
         for campo in (self.nombre, self.categoria, self.precio, self.stock):
             campo.set("")
+        self.tipo.set(_ETIQUETAS_TIPO["general"])
+        self.combo_tipo.configure(state="readonly")
         self.boton_guardar.configure(text="Guardar")
 
     def seleccionar(self, _evento):
@@ -65,6 +82,8 @@ class VistaEquipos(Panel):
         self.categoria.set(self.tabla.set(fila, "categoria"))
         self.precio.set(self.tabla.set(fila, "precio"))
         self.stock.set(self.tabla.set(fila, "total"))
+        self.tipo.set(self.tabla.set(fila, "tipo"))
+        self.combo_tipo.configure(state="disabled")
         self.boton_guardar.configure(text="Guardar cambios")
 
     def guardar(self):
@@ -75,7 +94,11 @@ class VistaEquipos(Panel):
         datos = (self.nombre.get(), categoria_id, self.precio.get(), self.stock.get())
         fila = self.seleccion()
         if fila is None:
-            guardado = self.ejecutar(crear_equipo, "Equipo guardado.", *datos)
+            tipo = _TIPOS_POR_ETIQUETA.get(self.tipo.get())
+            if tipo is None:
+                messagebox.showwarning("Tipo requerido", "Selecciona un tipo de equipamiento.", parent=self)
+                return
+            guardado = self.ejecutar(crear_equipo, "Equipo guardado.", *datos, tipo=tipo)
         else:
             guardado = self.ejecutar(actualizar_equipo, "Equipo actualizado.", int(fila), *datos)
         if guardado:

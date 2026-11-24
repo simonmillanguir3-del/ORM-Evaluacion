@@ -12,6 +12,8 @@ Base = modelos.Base
 Categoria = modelos.Categoria
 Cliente = modelos.Cliente
 Equipo = modelos.Equipo
+EquipoProteccion = modelos.EquipoProteccion
+EquipoEntrenamiento = modelos.EquipoEntrenamiento
 Arriendo = modelos.Arriendo
 
 
