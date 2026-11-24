@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import URL, create_engine, event
+from sqlalchemy import URL, create_engine, event, inspect
 
 from CRUD._comun import Base
 
@@ -21,5 +21,13 @@ def crear_motor(ruta=None):
         cursor.execute("PRAGMA foreign_keys = ON")
         cursor.close()
 
-    Base.metadata.create_all(motor)
+    with motor.begin() as conexion:
+        # Serializa el arranque si dos procesos abren una base antigua a la vez.
+        conexion.exec_driver_sql("BEGIN IMMEDIATE")
+        Base.metadata.create_all(conexion)
+        columnas = inspect(conexion).get_columns("equipos")
+        if all(columna["name"] != "tipo" for columna in columnas):
+            conexion.exec_driver_sql(
+                "ALTER TABLE equipos ADD COLUMN tipo VARCHAR NOT NULL DEFAULT 'general'"
+            )
     return motor

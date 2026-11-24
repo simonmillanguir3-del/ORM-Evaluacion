@@ -37,6 +37,7 @@ class Equipo(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str]
+    tipo: Mapped[str] = mapped_column(server_default="general")
     categoria_id: Mapped[int] = mapped_column(
         ForeignKey("categorias.id")
     )
@@ -50,6 +51,16 @@ class Equipo(Base):
     arriendos: Mapped[list["Arriendo"]] = relationship(
         back_populates="equipo"
     )
+
+    __mapper_args__ = {"polymorphic_on": tipo, "polymorphic_identity": "general"}
+
+
+class EquipoProteccion(Equipo):
+    __mapper_args__ = {"polymorphic_identity": "proteccion"}
+
+
+class EquipoEntrenamiento(Equipo):
+    __mapper_args__ = {"polymorphic_identity": "entrenamiento"}
 
 
 class Cliente(Base):
